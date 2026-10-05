@@ -40,7 +40,7 @@
     const button=event.target.closest('[data-project]'); if(!button) return;
     const p=projects.find(x=>x.id===button.dataset.project);
     previousFocus=button;
-    document.querySelector('#dialog-body').innerHTML=`<span class="dialog-category">${p.category}</span><h2 id="dialog-title">${p.name}</h2><p class="dialog-subtitle">${p.subtitle}</p><span class="dialog-status">${p.status}</span><div class="dialog-section"><h3>Задача</h3><p>${p.task}</p></div><div class="dialog-section"><h3>Решение</h3><p>${p.solution}</p></div><div class="dialog-section"><h3>Результат</h3><p>${p.result}</p></div><div class="dialog-section"><h3>Роль</h3><p>${p.role}</p></div><div class="tags">${p.tech.map(t=>`<span>${t}</span>`).join('')}</div><a class="dialog-contact" href="https://t.me/duraceprog" target="_blank" rel="noopener noreferrer">Обсудить похожую задачу</a>`;
+    document.querySelector('#dialog-body').innerHTML=`<span class="dialog-category">${p.category}</span><h2 id="dialog-title">${p.name}</h2><p class="dialog-subtitle">${p.subtitle}</p><span class="dialog-status">${p.status}</span><div class="dialog-section"><h3>Задача</h3><p>${p.task}</p></div><div class="dialog-section"><h3>Решение</h3><p>${p.solution}</p></div><div class="dialog-section"><h3>Результат</h3><p>${p.result}</p></div><div class="dialog-section"><h3>Роль</h3><p>${p.role}</p></div><div class="tags">${p.tech.map(t=>`<span>${t}</span>`).join('')}</div><a class="dialog-contact" href="https://t.me/favech" target="_blank" rel="noopener noreferrer">Обсудить похожую задачу</a>`;
     dialog.showModal();dialog.scrollTop=0;document.body.classList.add('dialog-is-open');
   });
   document.querySelector('.dialog-close').addEventListener('click',()=>dialog.close());
@@ -48,44 +48,168 @@
   dialog.addEventListener('close',()=>{document.body.classList.remove('dialog-is-open');previousFocus?.focus({preventScroll:true});});
   const copyButton=document.querySelector('#copy-contact');
   copyButton.addEventListener('click',async()=>{
-    try{await navigator.clipboard.writeText('https://t.me/duraceprog');copyButton.textContent='Контакт скопирован';document.querySelector('#contact-status').textContent='Ссылка на Telegram скопирована';}
-    catch{copyButton.textContent='@duraceprog';document.querySelector('#contact-status').textContent='Не удалось скопировать автоматически. Контакт: @duraceprog';}
+    try{await navigator.clipboard.writeText('https://t.me/favech');copyButton.textContent='Контакт скопирован';document.querySelector('#contact-status').textContent='Ссылка на Telegram скопирована';}
+    catch{copyButton.textContent='@favech';document.querySelector('#contact-status').textContent='Не удалось скопировать автоматически. Контакт: @favech';}
   });
-  const media=matchMedia('(prefers-reduced-motion: reduce)');
-  let motion=!media.matches;
-  try{const saved=localStorage.getItem('savva-motion');if(saved!==null)motion=saved==='on'&&!media.matches;}catch{}
-  const motionButton=document.querySelector('#motion-toggle');
-  function setMotion(value){motion=value;document.documentElement.classList.toggle('reduce-motion',!motion);motionButton.textContent=`Анимация: ${motion?'вкл.':'выкл.'}`;motionButton.setAttribute('aria-pressed',String(!motion));if(!motion){document.querySelectorAll('.reveal').forEach(el=>el.classList.add('visible'));document.querySelector('.hero-art').style.transform='';document.querySelectorAll('.project-visual').forEach(el=>el.style.transform='');}try{localStorage.setItem('savva-motion',motion?'on':'off');}catch{}}
-  setMotion(motion);
-  motionButton.addEventListener('click',()=>setMotion(!motion));
-  media.addEventListener('change',e=>setMotion(!e.matches));
-  const observer=new IntersectionObserver(entries=>entries.forEach(entry=>{if(entry.isIntersecting){entry.target.classList.add('visible');observer.unobserve(entry.target);}}),{threshold:.08});
-  document.querySelectorAll('.reveal').forEach(el=>{el.classList.add('reveal-ready');observer.observe(el);});
-  const bar=document.querySelector('.progress'),hero=document.querySelector('.hero'),art=document.querySelector('.hero-art');
-  let pointerX=0,pointerY=0,smoothedX=0,smoothedY=0,scrollRatio=0,heroVisible=true;
-  const finePointer=matchMedia('(pointer: fine)');
-  const cursor=document.querySelector('.card-cursor');
-  addEventListener('pointermove',event=>{pointerX=(event.clientX/innerWidth-.5)*2;pointerY=(event.clientY/innerHeight-.5)*2;if(finePointer.matches){cursor.style.left=event.clientX+'px';cursor.style.top=event.clientY+'px';}},{passive:true});
-  document.querySelectorAll('.project-open').forEach(button=>{
-    const visual=button.querySelector('.project-visual');
-    button.addEventListener('pointerenter',()=>{if(finePointer.matches&&motion)cursor.classList.add('show');});
-    button.addEventListener('pointermove',event=>{if(!motion||!finePointer.matches)return;const r=button.getBoundingClientRect(),x=(event.clientX-r.left)/r.width-.5,y=(event.clientY-r.top)/r.height-.5;visual.style.transform=`perspective(900px) rotateX(${-y*5}deg) rotateY(${x*5}deg)`;});
-    button.addEventListener('pointerleave',()=>{visual.style.transform='';cursor.classList.remove('show');});
-    button.addEventListener('click',()=>cursor.classList.remove('show'));
+  const media = matchMedia('(prefers-reduced-motion: reduce)');
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)');
+  const motionButton = document.querySelector('#motion-toggle');
+  const hero = document.querySelector('.hero');
+  const bar = document.querySelector('.progress');
+  const cursor = document.querySelector('.card-cursor');
+  const reveals = document.querySelectorAll('.reveal');
+  const visualsToReset = document.querySelectorAll('.project-visual, .magnetic');
+  let preferredMotion = true;
+  let motion = false;
+  let frameId = 0;
+  let pointerX = 0;
+  let pointerY = 0;
+  let cursorX = 0;
+  let cursorY = 0;
+  let activeVisual = null;
+  let activeMagnet = null;
+  let tiltX = 0;
+  let tiltY = 0;
+  let magnetX = 0;
+  let magnetY = 0;
+  try { preferredMotion = localStorage.getItem('savva-motion') !== 'off'; } catch {}
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: .08 });
+
+  function resetEffects() {
+    if (frameId) cancelAnimationFrame(frameId);
+    frameId = 0;
+    pointerX = pointerY = 0;
+    activeVisual = activeMagnet = null;
+    visualsToReset.forEach(element => { element.style.transform = ''; });
+    cursor.classList.remove('show');
+    cursor.style.left = '';
+    cursor.style.top = '';
+    hero.style.setProperty('--pointer-x', '0px');
+    hero.style.setProperty('--pointer-y', '0px');
+    hero.style.setProperty('--scroll-offset', '0px');
+  }
+
+  function applyMotion() {
+    motion = preferredMotion && !media.matches;
+    document.documentElement.classList.toggle('reduce-motion', !motion);
+    motionButton.textContent = `Анимация: ${motion ? 'вкл.' : 'выкл.'}`;
+    motionButton.setAttribute('aria-pressed', String(!motion));
+    motionButton.disabled = media.matches;
+    motionButton.title = media.matches ? 'Уменьшение движения включено в настройках устройства' : 'Включить или выключить анимацию';
+    if (!motion) {
+      resetEffects();
+      observer.disconnect();
+      reveals.forEach(element => element.classList.add('visible'));
+    }
+  }
+
+  applyMotion();
+  reveals.forEach(element => {
+    element.classList.add('reveal-ready');
+    if (motion) observer.observe(element);
   });
-  document.querySelectorAll('.magnetic').forEach(button=>{
-    button.addEventListener('pointermove',event=>{if(!motion||!finePointer.matches)return;const r=button.getBoundingClientRect();button.style.transform=`translate(${(event.clientX-r.left-r.width/2)*.14}px,${(event.clientY-r.top-r.height/2)*.14}px)`;});
-    button.addEventListener('pointerleave',()=>button.style.transform='');
+  motionButton.addEventListener('click', () => {
+    preferredMotion = !preferredMotion;
+    try { localStorage.setItem('savva-motion', preferredMotion ? 'on' : 'off'); } catch {}
+    applyMotion();
+    scheduleFrame();
   });
-  function onScroll(){const max=document.documentElement.scrollHeight-innerHeight;bar.style.width=(max>0?scrollY/max*100:0)+'%';scrollRatio=Math.min(scrollY/hero.offsetHeight,1);}
-  addEventListener('scroll',onScroll,{passive:true});addEventListener('resize',onScroll);onScroll();
-  new IntersectionObserver(([entry])=>{heroVisible=entry.isIntersecting;}).observe(hero);
-  const canvas=document.querySelector('#field'),ctx=canvas.getContext('2d');
-  let cw=0,ch=0;
-  const particles=Array.from({length:48},(_,i)=>({x:(Math.sin(i*83.1)*.5+.5),y:(Math.cos(i*36.7)*.5+.5),r:i%4===0?1.5:.7,s:.15+(i%7)*.025}));
-  function resizeCanvas(){const dpr=Math.min(devicePixelRatio||1,1.5);cw=hero.clientWidth;ch=hero.clientHeight;canvas.width=cw*dpr;canvas.height=ch*dpr;ctx?.setTransform(dpr,0,0,dpr,0,0);}
-  resizeCanvas();addEventListener('resize',resizeCanvas);
-  let last=0,elapsed=0;
-  function frame(time){requestAnimationFrame(frame);if(document.hidden||!heroVisible||!motion||time-last<32)return;last=time;elapsed+=.016;smoothedX+=(pointerX-smoothedX)*.055;smoothedY+=(pointerY-smoothedY)*.055;art.style.transform=`translate3d(${smoothedX*13}px,${smoothedY*10-scrollRatio*35}px,0) rotate(${smoothedX*2+Math.sin(elapsed*.5)*1.5}deg)`;if(!ctx)return;ctx.clearRect(0,0,cw,ch);for(const p of particles){const x=p.x*cw+Math.sin(elapsed*p.s)*15+smoothedX*8;const y=(p.y*ch-elapsed*p.s*5+ch)%ch;ctx.beginPath();ctx.arc(x,y,p.r,0,Math.PI*2);ctx.fillStyle=p.r>1?'#ff714e88':'#f2f1e960';ctx.fill();}}
-  requestAnimationFrame(frame);
+  media.addEventListener('change', applyMotion);
+  finePointer.addEventListener('change', resetEffects);
+
+  function renderFrame() {
+    frameId = 0;
+    const maxScroll = document.documentElement.scrollHeight - innerHeight;
+    bar.style.width = `${maxScroll > 0 ? Math.min(100, Math.max(0, scrollY / maxScroll * 100)) : 0}%`;
+    if (!motion || document.hidden) return;
+    hero.style.setProperty('--pointer-x', `${pointerX.toFixed(2)}px`);
+    hero.style.setProperty('--pointer-y', `${pointerY.toFixed(2)}px`);
+    hero.style.setProperty('--scroll-offset', `${Math.min(40, Math.max(0, scrollY / Math.max(1, hero.offsetHeight) * 40)).toFixed(2)}px`);
+    if (!finePointer.matches) return;
+    cursor.style.left = `${cursorX}px`;
+    cursor.style.top = `${cursorY}px`;
+    if (activeVisual) activeVisual.style.transform = `perspective(1100px) rotateX(${tiltX}deg) rotateY(${tiltY}deg)`;
+    if (activeMagnet) activeMagnet.style.transform = `translate(${magnetX}px, ${magnetY}px)`;
+  }
+
+  function scheduleFrame() {
+    if (!frameId && !document.hidden) frameId = requestAnimationFrame(renderFrame);
+  }
+
+  hero.addEventListener('pointermove', event => {
+    if (!motion || !finePointer.matches) return;
+    const rect = hero.getBoundingClientRect();
+    pointerX = ((event.clientX - rect.left) / rect.width - .5) * 28;
+    pointerY = ((event.clientY - rect.top) / rect.height - .5) * 28;
+    scheduleFrame();
+  }, { passive: true });
+  hero.addEventListener('pointerleave', () => {
+    pointerX = pointerY = 0;
+    if (motion) scheduleFrame();
+  });
+  addEventListener('pointermove', event => {
+    if (!motion || !finePointer.matches || !cursor.classList.contains('show')) return;
+    cursorX = event.clientX;
+    cursorY = event.clientY;
+    scheduleFrame();
+  }, { passive: true });
+
+  document.querySelectorAll('.project-open').forEach(button => {
+    const visual = button.querySelector('.project-visual');
+    button.addEventListener('pointerenter', event => {
+      if (!motion || !finePointer.matches) return;
+      cursorX = event.clientX;
+      cursorY = event.clientY;
+      cursor.style.left = `${cursorX}px`;
+      cursor.style.top = `${cursorY}px`;
+      cursor.classList.add('show');
+    });
+    button.addEventListener('pointermove', event => {
+      if (!motion || !finePointer.matches) return;
+      const rect = button.getBoundingClientRect();
+      activeVisual = visual;
+      tiltX = Math.max(-2, Math.min(2, -((event.clientY - rect.top) / rect.height - .5) * 4));
+      tiltY = Math.max(-2, Math.min(2, ((event.clientX - rect.left) / rect.width - .5) * 4));
+      scheduleFrame();
+    });
+    const clearCard = () => {
+      if (activeVisual === visual) activeVisual = null;
+      visual.style.transform = '';
+      cursor.classList.remove('show');
+    };
+    button.addEventListener('pointerleave', clearCard);
+    button.addEventListener('click', clearCard);
+    button.addEventListener('blur', clearCard);
+  });
+  document.querySelectorAll('.magnetic').forEach(button => {
+    button.addEventListener('pointermove', event => {
+      if (!motion || !finePointer.matches) return;
+      const rect = button.getBoundingClientRect();
+      activeMagnet = button;
+      magnetX = Math.max(-4, Math.min(4, (event.clientX - rect.left - rect.width / 2) * .06));
+      magnetY = Math.max(-4, Math.min(4, (event.clientY - rect.top - rect.height / 2) * .06));
+      scheduleFrame();
+    });
+    const clearMagnet = () => {
+      if (activeMagnet === button) activeMagnet = null;
+      button.style.transform = '';
+    };
+    button.addEventListener('pointerleave', clearMagnet);
+    button.addEventListener('blur', clearMagnet);
+  });
+  addEventListener('scroll', scheduleFrame, { passive: true });
+  addEventListener('resize', scheduleFrame);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) resetEffects();
+    else scheduleFrame();
+  });
+  document.addEventListener('pointerleave', resetEffects);
+  scheduleFrame();
 })();
